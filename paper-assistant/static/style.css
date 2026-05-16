@@ -106,16 +106,19 @@ body {
 
 .file-name-display {
     display: none;
-    margin: 8px 0 12px;
-    padding: 8px 16px;
+    margin-bottom: 20px;
+    padding: 20px 24px;
     background: #eef3ff;
-    border: 1px solid #c4d2f0;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #1A56DB;
+    border: 2px solid #1A56DB;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a2e;
+    text-align: center;
 }
-.file-name-display.visible { display: inline-block; }
+.file-name-display.visible { display: block; }
+.file-name-icon { font-size: 32px; display: block; margin-bottom: 8px; }
+.file-name-text { color: #1A56DB; word-break: break-all; }
 
 /* ===== Buttons ===== */
 .btn {

@@ -19,13 +19,15 @@
 {% endif %}
 
 <div class="upload-card">
-    <div class="upload-icon">📄</div>
     <form action="/upload" method="post" enctype="multipart/form-data">
-        <p class="upload-title">导入新论文</p>
-        <p class="upload-hint">支持英文 PDF 论文，AI 自动解析章节结构和关键公式</p>
+        <div id="upload-placeholder">
+            <div class="upload-icon">📄</div>
+            <p class="upload-title">导入新论文</p>
+            <p class="upload-hint">支持英文 PDF 论文，AI 自动解析章节结构和关键公式</p>
+        </div>
+        <div id="file-name" class="file-name-display"></div>
         <label class="file-label" for="file-input" id="file-label">选择 PDF 文件</label>
         <input id="file-input" type="file" name="file" accept=".pdf" required>
-        <span id="file-name" class="file-name-display"></span>
         <button type="submit" class="btn btn-primary btn-lg" id="upload-btn">上传并解析</button>
     </form>
 </div>
@@ -99,10 +101,12 @@
 const fileInput = document.getElementById('file-input');
 const fileName = document.getElementById('file-name');
 const fileLabel = document.getElementById('file-label');
+const placeholder = document.getElementById('upload-placeholder');
 if (fileInput) {
     fileInput.addEventListener('change', function() {
         if (this.files.length > 0) {
-            fileName.textContent = '已选择: ' + this.files[0].name;
+            placeholder.style.display = 'none';
+            fileName.innerHTML = '<span class="file-name-icon">📄</span><span class="file-name-text">' + this.files[0].name + '</span>';
             fileName.classList.add('visible');
             fileLabel.textContent = '更换文件';
         }
