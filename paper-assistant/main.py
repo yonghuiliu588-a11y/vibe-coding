@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from jinja2 import Environment, FileSystemLoader
 
 from config import UPLOAD_DIR, OUTPUT_DIR, CLAUDE_API_KEY
 from models import (
@@ -24,20 +24,22 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs("static", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+env = Environment(loader=FileSystemLoader("templates"), auto_reload=False)
+env.cache = None
 
 init_db()
+
+
+def _render(request: Request, template: str, **kwargs) -> HTMLResponse:
+    tpl = env.get_template(template)
+    return HTMLResponse(tpl.render(request=request, **kwargs))
 
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     papers = get_all_papers()
     api_key_set = bool(CLAUDE_API_KEY)
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "papers": papers,
-        "api_key_set": api_key_set,
-    })
+    return _render(request, "index.html", papers=papers, api_key_set=api_key_set)
 
 
 @app.get("/paper/{paper_id}", response_class=HTMLResponse)
@@ -54,11 +56,7 @@ async def paper_detail(request: Request, paper_id: int):
         except (json.JSONDecodeError, TypeError):
             sections_data = []
 
-    return templates.TemplateResponse("detail.html", {
-        "request": request,
-        "paper": paper,
-        "sections_data": sections_data,
-    })
+    return _render(request, "detail.html", paper=paper, sections_data=sections_data)
 
 
 @app.post("/upload")
@@ -124,12 +122,7 @@ async def generate_page(request: Request, paper_ids: str = ""):
             papers.append(p)
 
     api_key_set = bool(CLAUDE_API_KEY)
-    return templates.TemplateResponse("generate.html", {
-        "request": request,
-        "papers": papers,
-        "paper_ids": ids,
-        "api_key_set": api_key_set,
-    })
+    return _render(request, "generate.html", papers=papers, paper_ids=ids, api_key_set=api_key_set)
 
 
 @app.post("/generate")
