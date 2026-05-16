@@ -104,6 +104,19 @@ body {
 .file-label:hover { border-color: #1A56DB; color: #1A56DB; }
 .upload-card input[type="file"] { display: none; }
 
+.file-name-display {
+    display: none;
+    margin: 8px 0 12px;
+    padding: 8px 16px;
+    background: #eef3ff;
+    border: 1px solid #c4d2f0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1A56DB;
+}
+.file-name-display.visible { display: inline-block; }
+
 /* ===== Buttons ===== */
 .btn {
     display: inline-flex;
