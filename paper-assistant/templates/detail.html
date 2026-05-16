@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ paper.title or paper.filename }} — 论文助手{% endblock %}
+{% block content %}
+
+<div class="nav-back">
+    <a href="/">← 返回论文库</a>
+</div>
+
+<div class="detail-card">
+    <h2>{{ paper.title or paper.filename }}</h2>
+    <p class="meta">
+        {{ paper.authors or '作者未知' }}
+        {% if paper.year %}&middot; {{ paper.year }}{% endif %}
+    </p>
+
+    {% if paper.abstract %}
+    <div class="abstract">
+        <strong>摘要</strong>
+        <p style="margin-top:8px;">{{ paper.abstract }}</p>
+    </div>
+    {% endif %}
+
+    {% if sections_data %}
+    <h3 style="font-size:18px; margin-bottom:16px; margin-top:24px;">论文结构</h3>
+    <ul class="section-list">
+        {% for sec in sections_data %}
+        <li>
+            <div class="section-heading">{{ sec.heading }}</div>
+            <div class="section-summary">{{ sec.summary }}</div>
+            {% if sec.key_points %}
+            <ul class="key-points">
+                {% for pt in sec.key_points %}
+                <li>{{ pt }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% elif paper.status == 'processing' %}
+    <div class="alert alert-info">
+        <span class="spinner"></span> 论文正在解析中，请稍后刷新页面查看结果。
+    </div>
+    {% else %}
+    <div class="alert alert-info">暂无解析数据。如果论文状态为"失败"，请尝试重新上传。</div>
+    {% endif %}
+</div>
+
+{% endblock %}

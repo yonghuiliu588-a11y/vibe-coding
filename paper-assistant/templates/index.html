@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}论文助手 — 我的论文库{% endblock %}
+{% block content %}
+
+<div class="header">
+    <div>
+        <h1>论文助手</h1>
+        <p class="subtitle">导入论文 PDF，一键生成组会汇报 PPT</p>
+    </div>
+</div>
+
+{% if not api_key_set %}
+<div class="alert alert-warning">
+    <strong>提示：</strong>CLAUDE_API_KEY 未设置。PDF 基本解析可用，但 AI 分析和 PPT 内容生成需要配置 API Key。
+    设置方式：<code>set CLAUDE_API_KEY=your-key</code>（Windows）或 <code>export CLAUDE_API_KEY=your-key</code>（Mac/Linux）。
+</div>
+{% endif %}
+
+<div class="upload-section">
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <p style="font-weight:600; margin-bottom:12px; color:#444;">导入新论文</p>
+        <input type="file" name="file" accept=".pdf" required style="margin-bottom:12px;">
+        <br>
+        <button type="submit" class="btn btn-primary">上传并解析</button>
+    </form>
+</div>
+
+{% if papers %}
+<form action="/generate" method="get" id="select-form">
+    <table class="paper-table">
+        <thead>
+            <tr>
+                <th class="col-cb"><input type="checkbox" id="select-all" title="全选"></th>
+                <th class="col-title">标题</th>
+                <th class="col-authors">作者</th>
+                <th class="col-year">年份</th>
+                <th class="col-status">状态</th>
+                <th class="col-actions">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for paper in papers %}
+            <tr>
+                <td class="col-cb">
+                    <input type="checkbox" name="paper_ids" value="{{ paper.id }}" class="paper-checkbox">
+                </td>
+                <td class="col-title">
+                    <strong>{{ paper.title or paper.filename }}</strong>
+                </td>
+                <td class="col-authors">{{ paper.authors or '-' }}</td>
+                <td class="col-year">{{ paper.year or '-' }}</td>
+                <td class="col-status">
+                    {% if paper.status == 'done' %}
+                    <span class="status-done">已解析</span>
+                    {% elif paper.status == 'error' %}
+                    <span class="status-error">失败</span>
+                    {% else %}
+                    <span class="status-processing">处理中</span>
+                    {% endif %}
+                </td>
+                <td class="col-actions">
+                    <a href="/paper/{{ paper.id }}" class="btn btn-outline btn-sm">详情</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="action-bar">
+        <span class="selected-count">已选 <strong id="count">0</strong> 篇</span>
+        <button type="submit" class="btn btn-success" id="generate-btn" disabled>生成组会 PPT</button>
+    </div>
+</form>
+{% else %}
+<div class="empty-state">
+    <div class="icon">📚</div>
+    <p>还没有导入论文。上传第一篇 PDF 开始吧。</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const checkboxes = document.querySelectorAll('.paper-checkbox');
+const countEl = document.getElementById('count');
+const genBtn = document.getElementById('generate-btn');
+const selectAll = document.getElementById('select-all');
+
+function updateCount() {
+    const checked = document.querySelectorAll('.paper-checkbox:checked').length;
+    if (countEl) countEl.textContent = checked;
+    if (genBtn) genBtn.disabled = checked === 0;
+}
+
+checkboxes.forEach(cb => cb.addEventListener('change', updateCount));
+
+if (selectAll) {
+    selectAll.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        updateCount();
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}生成组会 PPT — 论文助手{% endblock %}
+{% block content %}
+
+<div class="nav-back">
+    <a href="/">← 返回论文库</a>
+</div>
+
+<div class="preview-box">
+    <h3>组会汇报 PPT 预览</h3>
+    <p style="font-size:14px; color:#666;">已选 {{ papers|length }} 篇论文，预计生成 <strong>{{ papers|length * 4 + 1 }}</strong> 页幻灯片（含封面页）。</p>
+</div>
+
+{% for paper in papers %}
+<div class="paper-summary">
+    <h3>{{ paper.title or paper.filename }}</h3>
+    <p>{{ paper.authors or '' }}{% if paper.year %} ({{ paper.year }}){% endif %} &rarr; 4 slides</p>
+</div>
+{% endfor %}
+
+{% if not api_key_set %}
+<div class="alert alert-warning" style="margin-top:20px;">
+    <strong>无法生成：</strong>CLAUDE_API_KEY 未设置。请设置环境变量后重启应用。
+</div>
+{% else %}
+<form action="/generate" method="post" style="margin-top:20px;">
+    {% for pid in paper_ids %}
+    <input type="hidden" name="paper_ids" value="{{ pid }}">
+    {% endfor %}
+    <button type="submit" class="btn btn-success">确认生成并下载</button>
+</form>
+{% endif %}
+
+{% endblock %}
