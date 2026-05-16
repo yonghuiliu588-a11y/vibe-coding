@@ -1,8 +1,17 @@
 import json
 from anthropic import Anthropic
+from anthropic.types import TextBlock
 from config import CLAUDE_API_KEY
 
 client = Anthropic(api_key=CLAUDE_API_KEY)
+
+
+def _get_text(response):
+    """Extract text from Claude response, handling ThinkingBlock."""
+    for block in response.content:
+        if isinstance(block, TextBlock):
+            return block.text
+    return ""
 
 SYSTEM_PROMPT = """You are a research paper analyzer. Your task is to read academic paper text and output structured JSON.
 
@@ -85,7 +94,9 @@ def analyze_paper(full_text):
             "content": ANALYZE_PROMPT.replace("{text}", full_text)
         }]
     )
-    result_text = response.content[0].text
+    result_text = _get_text(response)
+    if not result_text:
+        raise RuntimeError("No text in Claude response")
     result_text = result_text.strip()
     if result_text.startswith("```"):
         result_text = result_text.split("\n", 1)[1]
@@ -108,7 +119,9 @@ def generate_slide_content(paper_data):
             "content": SLIDE_PROMPT.replace("{paper_json}", json.dumps(paper_data, ensure_ascii=False))
         }]
     )
-    result_text = response.content[0].text
+    result_text = _get_text(response)
+    if not result_text:
+        raise RuntimeError("No text in Claude response")
     result_text = result_text.strip()
     if result_text.startswith("```"):
         result_text = result_text.split("\n", 1)[1]
