@@ -1,0 +1,11 @@
+.superpowers/
+__pycache__/
+*.pyc
+papers.db
+uploads/*
+output/*
+!uploads/.gitkeep
+!output/.gitkeep
+.env
+.venv/
+venv/
