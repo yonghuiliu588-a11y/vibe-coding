@@ -12,6 +12,12 @@ def _connect():
 def init_db():
     conn = _connect()
     try:
+        # Add overview column if upgrading from older schema
+        try:
+            conn.execute("ALTER TABLE papers ADD COLUMN overview TEXT DEFAULT ''")
+            conn.commit()
+        except Exception:
+            pass
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS papers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,6 +26,7 @@ def init_db():
                 authors TEXT DEFAULT '',
                 year INTEGER,
                 abstract TEXT DEFAULT '',
+                overview TEXT DEFAULT '',
                 sections TEXT DEFAULT '[]',
                 figures TEXT DEFAULT '[]',
                 status TEXT DEFAULT 'processing',
@@ -52,7 +59,7 @@ def insert_paper(filename, title='', authors='', year=None, abstract=''):
 
 
 def update_paper(paper_id, **kwargs):
-    allowed = {'title', 'authors', 'year', 'abstract', 'sections', 'figures', 'status'}
+    allowed = {'title', 'authors', 'year', 'abstract', 'overview', 'sections', 'figures', 'status'}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return

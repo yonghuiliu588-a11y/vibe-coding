@@ -7,42 +7,67 @@
 </div>
 
 <div class="detail-card">
-    <h2>{{ paper.title or paper.filename }}</h2>
-    <p class="meta">
-        {{ paper.authors or '作者未知' }}
-        {% if paper.year %}&middot; {{ paper.year }}{% endif %}
-    </p>
+    <div class="detail-header">
+        <h2>{{ paper.title or paper.filename }}</h2>
+        <p class="meta">
+            {{ paper.authors or '作者未知' }}
+            {% if paper.year %}&middot; <span class="year-tag">{{ paper.year }}</span>{% endif %}
+            {% if paper.status == 'done' %}
+            <span class="status-done ml-8">已解析</span>
+            {% endif %}
+        </p>
+    </div>
+
+    {% if paper.overview %}
+    <div class="overview-box">
+        <div class="overview-title">📋 AI 论文梗概</div>
+        <p>{{ paper.overview }}</p>
+    </div>
+    {% endif %}
 
     {% if paper.abstract %}
-    <div class="abstract">
+    <div class="abstract-box">
         <strong>摘要</strong>
-        <p style="margin-top:8px;">{{ paper.abstract }}</p>
+        <p>{{ paper.abstract }}</p>
+    </div>
+    {% endif %}
+
+    {% if formulas %}
+    <div class="formulas-box">
+        <h3>核心公式</h3>
+        {% for f in formulas %}
+        <div class="formula-item">{{ f }}</div>
+        {% endfor %}
     </div>
     {% endif %}
 
     {% if sections_data %}
-    <h3 style="font-size:18px; margin-bottom:16px; margin-top:24px;">论文结构</h3>
-    <ul class="section-list">
-        {% for sec in sections_data %}
-        <li>
-            <div class="section-heading">{{ sec.heading }}</div>
-            <div class="section-summary">{{ sec.summary }}</div>
-            {% if sec.key_points %}
-            <ul class="key-points">
-                {% for pt in sec.key_points %}
-                <li>{{ pt }}</li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-        </li>
-        {% endfor %}
-    </ul>
+    <div class="sections-box">
+        <h3>论文结构</h3>
+        <ul class="section-list">
+            {% for sec in sections_data %}
+            <li>
+                <div class="section-heading">{{ sec.heading }}</div>
+                <div class="section-summary">{{ sec.summary }}</div>
+                {% if sec.key_points %}
+                <ul class="key-points">
+                    {% for pt in sec.key_points %}
+                    <li>{{ pt }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
     {% elif paper.status == 'processing' %}
     <div class="alert alert-info">
         <span class="spinner"></span> 论文正在解析中，请稍后刷新页面查看结果。
     </div>
+    {% elif paper.status == 'error' %}
+    <div class="alert alert-error">解析失败，请重新上传或检查 API Key 配置。</div>
     {% else %}
-    <div class="alert alert-info">暂无解析数据。如果论文状态为"失败"，请尝试重新上传。</div>
+    <div class="alert alert-info">暂无 AI 解析数据。如果论文是之前导入的，请重新上传以获取完整分析。</div>
     {% endif %}
 </div>
 

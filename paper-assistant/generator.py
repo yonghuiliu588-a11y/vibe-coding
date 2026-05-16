@@ -60,6 +60,51 @@ def create_presentation(paper_slides_list, output_name="presentation.pptx"):
     return output_path
 
 
+def append_to_presentation(paper_slides_list, existing_path, output_name):
+    """Append new paper slides to an existing PPTX file."""
+    prs = Presentation(existing_path)
+    prs.slide_width = SLIDE_W
+    prs.slide_height = SLIDE_H
+
+    blank_layout = prs.slide_layouts[6]
+
+    # Separator slide to mark new content
+    slide = prs.slides.add_slide(blank_layout)
+    _add_text_box(slide, Inches(1.5), Inches(2.5), Inches(10.3), Inches(1.2),
+                  f"+ {len(paper_slides_list)} New Paper(s)", Pt(40), ACCENT, bold=True, align=PP_ALIGN.CENTER)
+    _add_divider(slide, Inches(3), Inches(4.0), Inches(7.3))
+
+    for paper_data in paper_slides_list:
+        slides = paper_data.get("slides", [])
+
+        for slide_data in slides:
+            slide = prs.slides.add_slide(blank_layout)
+
+            title = slide_data.get("title", "")
+            _add_text_box(slide, Inches(0.8), Inches(0.4), Inches(11.7), Inches(0.9),
+                          title, Pt(30), ACCENT, bold=True, align=PP_ALIGN.LEFT)
+
+            _add_divider(slide, Inches(0.8), Inches(1.3), Inches(11.7))
+
+            bullets = slide_data.get("bullets", [])
+            body_box = slide.shapes.add_textbox(Inches(1.2), Inches(1.8), Inches(10.9), Inches(5.2))
+            tf = body_box.text_frame
+            tf.word_wrap = True
+
+            for i, bullet in enumerate(bullets):
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                p.text = f"  {bullet}"
+                p.font.size = Pt(20)
+                p.font.color.rgb = DARK
+                p.space_after = Pt(14)
+                p.space_before = Pt(4)
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    output_path = os.path.join(OUTPUT_DIR, output_name)
+    prs.save(output_path)
+    return output_path
+
+
 def _add_text_box(slide, left, top, width, height, text, font_size, color,
                   bold=False, align=PP_ALIGN.LEFT):
     tb = slide.shapes.add_textbox(left, top, width, height)

@@ -5,28 +5,36 @@
 <div class="header">
     <div>
         <h1>论文助手</h1>
-        <p class="subtitle">导入论文 PDF，一键生成组会汇报 PPT</p>
+        <p class="subtitle">导入论文 PDF · AI 解析章节 · 一键生成组会汇报 PPT</p>
+    </div>
+    <div class="header-actions">
+        <span class="badge" id="paper-count">共 {{ papers|length }} 篇</span>
     </div>
 </div>
 
 {% if not api_key_set %}
 <div class="alert alert-warning">
     <strong>提示：</strong>CLAUDE_API_KEY 未设置。PDF 基本解析可用，但 AI 分析和 PPT 内容生成需要配置 API Key。
-    设置方式：<code>set CLAUDE_API_KEY=your-key</code>（Windows）或 <code>export CLAUDE_API_KEY=your-key</code>（Mac/Linux）。
 </div>
 {% endif %}
 
-<div class="upload-section">
+<div class="upload-card">
+    <div class="upload-icon">📄</div>
     <form action="/upload" method="post" enctype="multipart/form-data">
-        <p style="font-weight:600; margin-bottom:12px; color:#444;">导入新论文</p>
-        <input type="file" name="file" accept=".pdf" required style="margin-bottom:12px;">
-        <br>
-        <button type="submit" class="btn btn-primary">上传并解析</button>
+        <p class="upload-title">导入新论文</p>
+        <p class="upload-hint">支持英文 PDF 论文，AI 自动解析章节结构和关键公式</p>
+        <label class="file-label" for="file-input">选择 PDF 文件</label>
+        <input id="file-input" type="file" name="file" accept=".pdf" required>
+        <button type="submit" class="btn btn-primary btn-lg">上传并解析</button>
     </form>
 </div>
 
 {% if papers %}
 <form action="/generate" method="get" id="select-form">
+    <div class="section-header">
+        <h3>论文库</h3>
+        <span class="hint">勾选论文，一键生成汇报 PPT</span>
+    </div>
     <table class="paper-table">
         <thead>
             <tr>
@@ -45,7 +53,7 @@
                     <input type="checkbox" name="paper_ids" value="{{ paper.id }}" class="paper-checkbox">
                 </td>
                 <td class="col-title">
-                    <strong>{{ paper.title or paper.filename }}</strong>
+                    <a href="/paper/{{ paper.id }}" class="paper-link">{{ paper.title or paper.filename }}</a>
                 </td>
                 <td class="col-authors">{{ paper.authors or '-' }}</td>
                 <td class="col-year">{{ paper.year or '-' }}</td>
@@ -60,6 +68,9 @@
                 </td>
                 <td class="col-actions">
                     <a href="/paper/{{ paper.id }}" class="btn btn-outline btn-sm">详情</a>
+                    <form action="/delete/{{ paper.id }}" method="post" style="display:inline;" onsubmit="return confirm('确定删除 «{{ paper.title or paper.filename }}» 吗？')">
+                        <button type="submit" class="btn btn-danger btn-sm">删除</button>
+                    </form>
                 </td>
             </tr>
             {% endfor %}
@@ -67,14 +78,15 @@
     </table>
 
     <div class="action-bar">
-        <span class="selected-count">已选 <strong id="count">0</strong> 篇</span>
-        <button type="submit" class="btn btn-success" id="generate-btn" disabled>生成组会 PPT</button>
+        <span class="selected-count">已选 <strong id="count">0</strong> 篇论文</span>
+        <button type="submit" class="btn btn-success btn-lg" id="generate-btn" disabled>生成组会 PPT</button>
     </div>
 </form>
 {% else %}
 <div class="empty-state">
-    <div class="icon">📚</div>
-    <p>还没有导入论文。上传第一篇 PDF 开始吧。</p>
+    <div class="empty-icon">📚</div>
+    <h3>还没有导入论文</h3>
+    <p>上传第一篇 PDF 论文开始构建你的论文库吧</p>
 </div>
 {% endif %}
 

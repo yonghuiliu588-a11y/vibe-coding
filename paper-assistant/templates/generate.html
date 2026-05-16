@@ -6,29 +6,78 @@
     <a href="/">← 返回论文库</a>
 </div>
 
-<div class="preview-box">
-    <h3>组会汇报 PPT 预览</h3>
-    <p style="font-size:14px; color:#666;">已选 {{ papers|length }} 篇论文，预计生成 <strong>{{ papers|length * 4 + 1 }}</strong> 页幻灯片（含封面页）。</p>
+<div class="generate-card">
+    <h2>组会汇报 PPT 配置</h2>
+    <p class="subtitle">已选 {{ papers|length }} 篇论文</p>
+
+    <div class="papers-list">
+        {% for paper in papers %}
+        <div class="paper-item">
+            <span class="paper-item-icon">📄</span>
+            <div class="paper-item-info">
+                <strong>{{ paper.title or paper.filename }}</strong>
+                <span>{{ paper.authors or '' }}{% if paper.year %} ({{ paper.year }}){% endif %}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if not api_key_set %}
+    <div class="alert alert-warning">
+        <strong>无法生成：</strong>CLAUDE_API_KEY 未设置。请设置环境变量后重启应用。
+    </div>
+    {% else %}
+    <form action="/generate" method="post" class="generate-form">
+        {% for pid in paper_ids %}
+        <input type="hidden" name="paper_ids" value="{{ pid }}">
+        {% endfor %}
+
+        <div class="form-group">
+            <label for="slide-count">每篇论文生成页数</label>
+            <select name="slide_count" id="slide-count">
+                <option value="2">2 页 — 精简版</option>
+                <option value="3">3 页 — 紧凑版</option>
+                <option value="4" selected>4 页 — 标准版</option>
+                <option value="5">5 页 — 详细版</option>
+                <option value="6">6 页 — 深度版</option>
+            </select>
+            <span class="form-hint">页数越多，方法和实验结果越详细</span>
+        </div>
+
+        {% if presentations %}
+        <div class="form-group">
+            <label for="append-to">追加到已有汇报</label>
+            <select name="append_to" id="append-to">
+                <option value="">— 创建新汇报 —</option>
+                {% for pres in presentations %}
+                <option value="{{ pres.basename }}">
+                    {{ pres.name }}（{{ pres.created_at }}）
+                </option>
+                {% endfor %}
+            </select>
+            <span class="form-hint">选择已有 PPT，新论文将追加到末尾</span>
+        </div>
+        {% endif %}
+
+        <div class="preview-info">
+            <span class="preview-slide-count">预计生成 <strong>{{ papers|length }} × <span id="slide-multiplier">4</span></strong> + 1 封面 = <strong id="total-slides">{{ papers|length * 4 + 1 }}</strong> 页</span>
+            <span class="preview-note">含封面页和分割页</span>
+        </div>
+
+        <button type="submit" class="btn btn-success btn-lg btn-block">确认生成并下载 PPT</button>
+    </form>
+    {% endif %}
 </div>
 
-{% for paper in papers %}
-<div class="paper-summary">
-    <h3>{{ paper.title or paper.filename }}</h3>
-    <p>{{ paper.authors or '' }}{% if paper.year %} ({{ paper.year }}){% endif %} &rarr; 4 slides</p>
-</div>
-{% endfor %}
+{% endblock %}
 
-{% if not api_key_set %}
-<div class="alert alert-warning" style="margin-top:20px;">
-    <strong>无法生成：</strong>CLAUDE_API_KEY 未设置。请设置环境变量后重启应用。
-</div>
-{% else %}
-<form action="/generate" method="post" style="margin-top:20px;">
-    {% for pid in paper_ids %}
-    <input type="hidden" name="paper_ids" value="{{ pid }}">
-    {% endfor %}
-    <button type="submit" class="btn btn-success">确认生成并下载</button>
-</form>
-{% endif %}
-
+{% block scripts %}
+<script>
+document.getElementById('slide-count').addEventListener('change', function() {
+    var n = parseInt(this.value);
+    var papers = {{ papers|length }};
+    document.getElementById('slide-multiplier').textContent = n;
+    document.getElementById('total-slides').textContent = papers * n + (document.getElementById('append-to').value ? 1 : 1);
+});
+</script>
 {% endblock %}
