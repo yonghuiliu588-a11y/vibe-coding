@@ -23,12 +23,12 @@
         <div id="upload-placeholder">
             <div class="upload-icon">📄</div>
             <p class="upload-title">导入新论文</p>
-            <p class="upload-hint">支持英文 PDF 论文，AI 自动解析章节结构和关键公式</p>
+            <p class="upload-hint">上传 PDF 论文，去「论文精读」中触发 AI 解析</p>
         </div>
         <div id="file-name" class="file-name-display"></div>
         <label class="file-label" for="file-input" id="file-label">选择 PDF 文件</label>
         <input id="file-input" type="file" name="file" accept=".pdf" required>
-        <button type="submit" class="btn btn-primary btn-lg" id="upload-btn">上传并解析</button>
+        <button type="submit" class="btn btn-primary btn-lg" id="upload-btn">上传</button>
     </form>
 </div>
 
@@ -63,6 +63,8 @@
                 <td class="col-status">
                     {% if paper.status == 'done' %}
                     <span class="status-done">已解析</span>
+                    {% elif paper.status == 'uploaded' %}
+                    <span class="status-uploaded">已上传</span>
                     {% elif paper.status == 'error' %}
                     <span class="status-error">失败</span>
                     {% else %}
@@ -70,10 +72,7 @@
                     {% endif %}
                 </td>
                 <td class="col-actions">
-                    <a href="/paper/{{ paper.id }}" class="btn btn-outline btn-sm">详情</a>
-                    <form action="/delete/{{ paper.id }}" method="post" style="display:inline;">
-                        <button type="submit" class="btn btn-danger btn-sm">删除</button>
-                    </form>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="deletePaper({{ paper.id }}, this)">删除</button>
                 </td>
             </tr>
             {% endfor %}
@@ -111,6 +110,48 @@ if (fileInput) {
             fileLabel.textContent = '更换文件';
         }
     });
+}
+
+// Show loading overlay on upload submit
+const uploadForm = document.querySelector('.upload-card form');
+if (uploadForm) {
+    uploadForm.addEventListener('submit', function() {
+        showLoading('正在上传论文，请稍候…');
+    });
+}
+
+// Loading overlay
+function showLoading(msg) {
+    var overlay = document.createElement('div');
+    overlay.className = 'loading-overlay';
+    overlay.id = 'loading-overlay';
+    overlay.innerHTML = '<div class="loading-card"><span class="spinner"></span><p>' + (msg || '处理中…') + '</p></div>';
+    document.body.appendChild(overlay);
+}
+function hideLoading() {
+    var el = document.getElementById('loading-overlay');
+    if (el) el.remove();
+}
+
+// Delete paper
+async function deletePaper(paperId, btn) {
+    if (!confirm('确定要删除这篇论文吗？')) return;
+    btn.disabled = true;
+    btn.textContent = '删除中…';
+    try {
+        var resp = await fetch('/delete/' + paperId, { method: 'POST' });
+        if (resp.redirected || resp.ok) {
+            window.location.reload();
+        } else {
+            btn.disabled = false;
+            btn.textContent = '删除';
+            alert('删除失败');
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '删除';
+        alert('网络错误');
+    }
 }
 
 // Checkbox selection

@@ -5,11 +5,223 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}论文助手{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']],
+            processEscapes: true,
+        },
+        options: {
+            ignoreHtmlClass: 'no-math',
+        },
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </head>
 <body>
-    <div class="container">
-        {% block content %}{% endblock %}
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="sidebar-logo">📄</div>
+                <h1>论文助手</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/" class="nav-item {% if active_nav == 'ppt' %}active{% endif %}">
+                    <span class="nav-icon">📊</span>
+                    <span>组会PPT</span>
+                </a>
+                <a href="/deepread" class="nav-item {% if active_nav == 'deepread' %}active{% endif %}">
+                    <span class="nav-icon">📖</span>
+                    <span>论文精读</span>
+                </a>
+                <a href="/discuss" class="nav-item {% if active_nav == 'discuss' %}active{% endif %}">
+                    <span class="nav-icon">💬</span>
+                    <span>多论文讨论</span>
+                </a>
+                <a href="/search" class="nav-item {% if active_nav == 'search' %}active{% endif %}">
+                    <span class="nav-icon">🔍</span>
+                    <span>谷歌搜索</span>
+                </a>
+                <a href="/figure" class="nav-item {% if active_nav == 'figure' %}active{% endif %}">
+                    <span class="nav-icon">📈</span>
+                    <span>图表生成</span>
+                </a>
+                <a href="/polish" class="nav-item {% if active_nav == 'polish' %}active{% endif %}">
+                    <span class="nav-icon">✨</span>
+                    <span>文本润色</span>
+                </a>
+                <a href="/settings" class="nav-item {% if active_nav == 'settings' %}active{% endif %}">
+                    <span class="nav-icon">⚙️</span>
+                    <span>设置</span>
+                </a>
+                <a href="/publish" class="nav-item {% if active_nav == 'publish' %}active{% endif %}">
+                    <span class="nav-icon">🚀</span>
+                    <span>秒发A会</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="sidebar-hint">AI 驱动的学术工具</span>
+            </div>
+        </aside>
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
     </div>
     {% block scripts %}{% endblock %}
+    <script>
+    // Re-render MathJax after content updates
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.MathJax && MathJax.typesetPromise) {
+            MathJax.typesetPromise();
+        }
+    });
+    </script>
+
+<!-- ===== Floating Chat Widget ===== -->
+<button class="chat-fab" id="chatFab" onclick="toggleChatWidget()" title="AI 助手">💬</button>
+
+<div class="chat-widget" id="chatWidget">
+    <div class="widget-header">
+        <span>🤖 AI 助手</span>
+        <button class="widget-close" onclick="toggleChatWidget()" aria-label="关闭">✕</button>
+    </div>
+    <div class="widget-messages" id="widgetMessages">
+        <div class="chat-msg assistant">
+            <div class="msg-avatar">🤖</div>
+            <div class="msg-bubble">
+                你好！我是 AI 助手，可以帮你解答学术问题。<br><br>比如：<br>• 解释机器学习中的某个概念<br>• 讨论论文写作技巧<br>• 回答研究方法的问题
+            </div>
+        </div>
+    </div>
+    <div class="widget-input-area">
+        <textarea id="widgetInput" placeholder="输入你的问题…" rows="1"
+                  onkeydown="handleWidgetKeyDown(event)"></textarea>
+        <button class="btn btn-primary" id="widgetSendBtn" onclick="sendWidgetMessage()">发送</button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const fab = document.getElementById('chatFab');
+    const widget = document.getElementById('chatWidget');
+    const msgContainer = document.getElementById('widgetMessages');
+    const input = document.getElementById('widgetInput');
+    const sendBtn = document.getElementById('widgetSendBtn');
+
+    let widgetMessages = [];
+    let isWidgetWaiting = false;
+    let widgetConversationId = '';
+
+    window.toggleChatWidget = function() {
+        widget.classList.toggle('open');
+        fab.classList.toggle('hidden');
+        if (widget.classList.contains('open')) {
+            input.focus();
+        }
+    };
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && widget.classList.contains('open')) {
+            if (document.querySelector('.lightbox-overlay')) return;
+            toggleChatWidget();
+        }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!widget.classList.contains('open')) return;
+        if (widget.contains(e.target) || fab.contains(e.target)) return;
+        toggleChatWidget();
+    });
+
+    function escapeWidgetHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML.replace(/\n/g, '<br>');
+    }
+
+    function addWidgetMessage(role, text) {
+        var div = document.createElement('div');
+        div.className = 'chat-msg ' + role;
+        var avatar = role === 'user' ? '👤' : '🤖';
+        div.innerHTML =
+            '<div class="msg-avatar">' + avatar + '</div>' +
+            '<div class="msg-bubble">' + escapeWidgetHtml(text) + '</div>';
+        msgContainer.appendChild(div);
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+        if (window.MathJax && MathJax.typesetPromise) {
+            MathJax.typesetPromise([div]);
+        }
+    }
+
+    window.handleWidgetKeyDown = function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendWidgetMessage();
+        }
+    };
+
+    input.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+    });
+
+    window.sendWidgetMessage = async function() {
+        var question = input.value.trim();
+        if (!question || isWidgetWaiting) return;
+
+        input.value = '';
+        input.style.height = 'auto';
+        isWidgetWaiting = true;
+        sendBtn.disabled = true;
+        sendBtn.textContent = '思考中…';
+
+        addWidgetMessage('user', question);
+        widgetMessages.push({ role: 'user', content: question });
+
+        var typingDiv = document.createElement('div');
+        typingDiv.className = 'chat-msg assistant typing';
+        typingDiv.innerHTML =
+            '<div class="msg-avatar">🤖</div>' +
+            '<div class="msg-bubble"><span class="typing-dots">' +
+            '<span></span><span></span><span></span></span></div>';
+        msgContainer.appendChild(typingDiv);
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+
+        try {
+            var resp = await fetch('/api/chat-assistant', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question: question,
+                    messages: widgetMessages.slice(0, -1),
+                    conversation_id: widgetConversationId,
+                }),
+            });
+            var data = await resp.json();
+
+            typingDiv.remove();
+
+            if (data.error) {
+                addWidgetMessage('assistant', '抱歉，出错了：' + data.error);
+            } else {
+                addWidgetMessage('assistant', data.response);
+                widgetMessages.push({ role: 'assistant', content: data.response });
+                if (data.conversation_id) {
+                    widgetConversationId = data.conversation_id;
+                }
+            }
+        } catch (err) {
+            typingDiv.remove();
+            addWidgetMessage('assistant', '网络错误，请重试。');
+        }
+
+        isWidgetWaiting = false;
+        sendBtn.disabled = false;
+        sendBtn.textContent = '发送';
+        input.focus();
+    };
+})();
+</script>
 </body>
 </html>

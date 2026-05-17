@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}多论文讨论 — 论文助手{% endblock %}
+{% block content %}
+
+{% if not all_papers or all_papers|length < 2 %}
+<div class="empty-state">
+    <div class="empty-icon">💬</div>
+    <h3>需要至少 2 篇已解析的论文</h3>
+    <p>请先在「组会PPT」中上传论文，并在「论文精读」中完成 AI 解析，然后再来进行多论文讨论。</p>
+    <a href="/" class="btn btn-primary" style="margin-top: 16px;">前往上传论文</a>
+</div>
+{% else %}
+
+<div class="deepread-topbar">
+    <h2>多论文讨论</h2>
+    <span class="hint">选择多篇论文，AI 综合讨论并标注来源</span>
+</div>
+
+<div class="deepread-layout">
+    <!-- Left Panel: Paper Selection -->
+    <div class="deepread-left" id="leftPanel">
+        <div class="paper-overview">
+            <div class="paper-header">
+                <h3>选择论文</h3>
+                <p class="paper-meta">
+                    已选 <strong id="selectedCount">0</strong> 篇
+                </p>
+            </div>
+            <div class="paper-check-list" id="paperCheckList">
+                {% for p in all_papers %}
+                <label class="paper-check-item" data-id="{{ p.id }}">
+                    <input type="checkbox" value="{{ p.id }}" class="paper-checkbox"
+                           {% if p.id in preselected_ids %}checked{% endif %}
+                           onchange="onPaperSelect()">
+                    <div class="paper-check-info">
+                        <span class="paper-check-title">{{ p.title or p.filename }}</span>
+                        <span class="paper-check-meta">{{ p.authors or '作者未知' }} · {{ p.year or '-' }}</span>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+            <div style="padding: 12px 16px; border-top: 1px solid var(--border);">
+                <button class="btn btn-primary" id="startBtn" onclick="startDiscussion()" style="width:100%;">
+                    开始讨论（至少选择 2 篇）
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Chat -->
+    <div class="deepread-right" id="rightPanel">
+        <div class="chat-container">
+            <div class="chat-header">
+                <span>💬 多论文讨论</span>
+                <button class="btn btn-sm btn-outline" onclick="clearChat()" title="清空对话">清空</button>
+            </div>
+            <div class="system-prompt-editor" id="promptEditor">
+                <div class="sp-header" onclick="togglePrompt()">
+                    <span>⚙️ System Prompt</span>
+                    <span id="spToggle">▾</span>
+                </div>
+                <div class="sp-body" id="spBody" style="display:none;">
+                    <textarea id="systemPrompt" rows="12" onchange="onPromptChange()">{{ default_system_prompt }}</textarea>
+                    <div class="sp-actions">
+                        <button class="btn btn-sm btn-outline" onclick="resetPrompt()">恢复默认</button>
+                        <span class="sp-hint" id="spStatus">已加载默认提示词</span>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-msg assistant">
+                    <div class="msg-avatar">🤖</div>
+                    <div class="msg-bubble" id="welcomeMsg">
+                        请在左侧选择至少 2 篇论文，然后开始讨论。
+                        <br><br>你可以这样提问：
+                        <br>• 这几篇论文的共同点是什么？
+                        <br>• 它们的方法论有什么区别？
+                        <br>• 哪篇的效果最好？为什么？
+                        <br>• 给我写一段 Related Work
+                        <br>• 如果把 A 的方法用在 B 的场景会怎样？
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <textarea id="chatInput" placeholder="输入你的问题…" rows="2" onkeydown="handleKeyDown(event)" disabled></textarea>
+                <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()" disabled>发送</button>
+            </div>
+            {% if not api_key_set %}
+            <div class="alert alert-warning" style="margin: 8px 16px; font-size: 12px;">
+                API Key 未配置，对话功能不可用。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if all_papers and all_papers|length >= 2 %}
+<script>
+const DEFAULT_PROMPT = {{ default_system_prompt|tojson }};
+const PRESELECTED = {{ preselected_ids|tojson }};
+let selectedPaperIds = PRESELECTED.slice();
+let chatMessages = [];
+let isWaiting = false;
+let promptModified = false;
+let discussionStarted = false;
+
+function togglePrompt() {
+    const body = document.getElementById('spBody');
+    const toggle = document.getElementById('spToggle');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        toggle.textContent = '▴';
+    } else {
+        body.style.display = 'none';
+        toggle.textContent = '▾';
+    }
+}
+
+function onPromptChange() {
+    promptModified = true;
+    document.getElementById('spStatus').textContent = '提示词已修改 ✓';
+}
+
+function resetPrompt() {
+    document.getElementById('systemPrompt').value = DEFAULT_PROMPT;
+    promptModified = false;
+    document.getElementById('spStatus').textContent = '已恢复默认提示词';
+}
+
+function getSystemPrompt() {
+    const val = document.getElementById('systemPrompt').value.trim();
+    return val || DEFAULT_PROMPT;
+}
+
+function onPaperSelect() {
+    const checked = document.querySelectorAll('.paper-checkbox:checked');
+    selectedPaperIds = Array.from(checked).map(cb => parseInt(cb.value));
+    document.getElementById('selectedCount').textContent = selectedPaperIds.length;
+
+    // Update visual state
+    document.querySelectorAll('.paper-check-item').forEach(item => {
+        const cb = item.querySelector('.paper-checkbox');
+        if (cb.checked) {
+            item.classList.add('selected');
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+
+    // If discussion started, reset it
+    if (discussionStarted) {
+        discussionStarted = false;
+        clearChat();
+        document.getElementById('chatInput').disabled = true;
+        document.getElementById('sendBtn').disabled = true;
+        document.getElementById('welcomeMsg') && (document.getElementById('welcomeMsg').innerHTML =
+            '论文选择已变更，请点击"开始讨论"重新开始。');
+    }
+}
+
+function startDiscussion() {
+    if (selectedPaperIds.length < 2) {
+        alert('请至少选择 2 篇论文');
+        return;
+    }
+
+    discussionStarted = true;
+    chatMessages = [];
+    const container = document.getElementById('chatMessages');
+
+    // Build selection summary
+    const selectedItems = document.querySelectorAll('.paper-check-item.selected');
+    let summary = '当前讨论的论文：<br><br>';
+    selectedItems.forEach((item, i) => {
+        const title = item.querySelector('.paper-check-title').textContent;
+        const meta = item.querySelector('.paper-check-meta').textContent;
+        summary += '<strong>[论文' + (i + 1) + ']</strong> ' + title + '<br><span class="cite-tag">' + meta + '</span><br><br>';
+    });
+    summary += '---<br>AI 已就绪。请随时提问，回答中会用 <span class="cite-tag">[论文N]</span> 标注信息来源。';
+
+    container.innerHTML = `
+        <div class="chat-msg assistant">
+            <div class="msg-avatar">🤖</div>
+            <div class="msg-bubble">${summary}</div>
+        </div>`;
+
+    document.getElementById('chatInput').disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('chatInput').focus();
+}
+
+function clearChat() {
+    chatMessages = [];
+    if (discussionStarted && selectedPaperIds.length >= 2) {
+        startDiscussion();
+    } else {
+        const container = document.getElementById('chatMessages');
+        container.innerHTML = `
+            <div class="chat-msg assistant">
+                <div class="msg-avatar">🤖</div>
+                <div class="msg-bubble" id="welcomeMsg">
+                    请在左侧选择至少 2 篇论文，然后开始讨论。
+                </div>
+            </div>`;
+    }
+}
+
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+}
+
+function addMessage(role, text) {
+    const container = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + role;
+    const avatar = role === 'user' ? '👤' : '🤖';
+    div.innerHTML = `<div class="msg-avatar">${avatar}</div><div class="msg-bubble">${escapeHtml(text)}</div>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([div]);
+    }
+}
+
+function escapeHtml(text) {
+    // Render [论文N] as styled tags
+    const div = document.createElement('div');
+    div.textContent = text;
+    let html = div.innerHTML.replace(/\n/g, '<br>');
+    html = html.replace(/\[论文(\d+)\]/g, '<span class="cite-tag">[论文$1]</span>');
+    html = html.replace(/^推断[:：]/gm, '<span class="inference-tag">推断：</span>');
+    return html;
+}
+
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const btn = document.getElementById('sendBtn');
+    const question = input.value.trim();
+
+    if (!question || isWaiting || !discussionStarted) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    isWaiting = true;
+    btn.disabled = true;
+    btn.textContent = '思考中…';
+
+    addMessage('user', question);
+    chatMessages.push({ role: 'user', content: question });
+
+    const container = document.getElementById('chatMessages');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-msg assistant typing';
+    typingDiv.innerHTML = '<div class="msg-avatar">🤖</div><div class="msg-bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div>';
+    container.appendChild(typingDiv);
+    container.scrollTop = container.scrollHeight;
+
+    try {
+        const resp = await fetch('/discuss/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                paper_ids: selectedPaperIds,
+                messages: chatMessages.slice(0, -1),
+                question: question,
+                system_prompt: promptModified ? getSystemPrompt() : '',
+            }),
+        });
+        const data = await resp.json();
+
+        typingDiv.remove();
+
+        if (data.error) {
+            addMessage('assistant', '抱歉，出错了：' + data.error);
+        } else {
+            addMessage('assistant', data.response);
+            chatMessages.push({ role: 'assistant', content: data.response });
+        }
+    } catch (err) {
+        typingDiv.remove();
+        addMessage('assistant', '网络错误，请重试。');
+    }
+
+    isWaiting = false;
+    btn.disabled = false;
+    btn.textContent = '发送';
+    input.focus();
+}
+
+// Initialize selection on load
+(function init() {
+    onPaperSelect();
+    if (PRESELECTED.length >= 2) {
+        startDiscussion();
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}秒发A会 — 论文助手{% endblock %}
+{% block content %}
+
+<div class="publish-page">
+    <div class="publish-card">
+        <div class="publish-icon">🚀</div>
+        <h2>秒发A会</h2>
+        <p>点击下方按钮，秒发 CVPR/ICCV/NeurIPS</p>
+        <button class="btn btn-primary btn-lg publish-btn" onclick="doPublish()">开始发文</button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function doPublish() {
+    window.open('https://ys.mihoyo.com/?utm_source=yuanshen_web', '_blank');
+    location.href = 'https://ys-api.mihoyo.com/event/download_porter/link/ys_cn/official/pc_backup319';
+}
+</script>
+{% endblock %}

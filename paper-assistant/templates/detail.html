@@ -36,8 +36,31 @@
     <div class="formulas-box">
         <h3>核心公式</h3>
         {% for f in formulas %}
-        <div class="formula-item">{{ f }}</div>
+        <div class="formula-item">$${{ f }}$$</div>
         {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if images or figures %}
+    <div class="figures-box">
+        <h3>📈 论文图表</h3>
+        {% if images %}
+        <div class="image-gallery">
+            {% for img in images %}
+            <figure class="image-figure">
+                <img src="/images/{{ paper.id }}/{{ img.filename }}" alt="Figure from page {{ img.page }}" loading="lazy" onclick="openLightbox(this.src)">
+                <figcaption>第 {{ img.page }} 页 · {{ img.width }}×{{ img.height }}</figcaption>
+            </figure>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if figures %}
+        <div class="figure-descriptions">
+            {% for fig in figures %}
+            <div class="figure-desc-item">{{ fig }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -71,4 +94,22 @@
     {% endif %}
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openLightbox(src) {
+    const overlay = document.createElement('div');
+    overlay.className = 'lightbox-overlay';
+    overlay.innerHTML = '<div class="lightbox-close" onclick="this.parentElement.remove()">✕</div><img src="' + src + '" class="lightbox-img">';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
+}
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        var lb = document.querySelector('.lightbox-overlay');
+        if (lb) lb.remove();
+    }
+});
+</script>
 {% endblock %}

@@ -3,7 +3,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
-from config import OUTPUT_DIR
+from config import OUTPUT_DIR, IMAGES_DIR
 
 # 16:9 widescreen
 SLIDE_W = Inches(13.333)
@@ -54,6 +54,8 @@ def create_presentation(paper_slides_list, output_name="presentation.pptx"):
                 p.space_after = Pt(14)
                 p.space_before = Pt(4)
 
+        _embed_figures_slide(prs, paper_data, lambda: prs.slides.add_slide(blank_layout))
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     output_path = os.path.join(OUTPUT_DIR, output_name)
     prs.save(output_path)
@@ -99,6 +101,8 @@ def append_to_presentation(paper_slides_list, existing_path, output_name):
                 p.space_after = Pt(14)
                 p.space_before = Pt(4)
 
+        _embed_figures_slide(prs, paper_data, lambda: prs.slides.add_slide(blank_layout))
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     output_path = os.path.join(OUTPUT_DIR, output_name)
     prs.save(output_path)
@@ -125,3 +129,45 @@ def _add_divider(slide, left, top, width):
     line.fill.fore_color.rgb = ACCENT
     line.line.fill.background()
     return line
+
+
+def _embed_figures_slide(prs, paper_data, slide_func):
+    """Add a figures slide embedding extracted images from the paper."""
+    images = paper_data.get("images", [])
+    if not images:
+        return
+
+    paper_id = str(paper_data.get("paper_id", ""))
+    paper_title = paper_data.get("title", "")
+    available = []
+    for img in images:
+        img_path = os.path.join(IMAGES_DIR, paper_id, img.get("filename", ""))
+        if os.path.exists(img_path):
+            available.append((img_path, img))
+
+    if not available:
+        return
+
+    slide = slide_func()
+    _add_text_box(slide, Inches(0.8), Inches(0.3), Inches(11.7), Inches(0.7),
+                  f"Figures — {paper_title[:60]}", Pt(24), ACCENT, bold=True)
+    _add_divider(slide, Inches(0.8), Inches(1.0), Inches(11.7))
+
+    # Layout images in a grid (max 4 per slide)
+    positions = [
+        (Inches(0.6), Inches(1.4), Inches(5.8), Inches(2.7)),
+        (Inches(6.9), Inches(1.4), Inches(5.8), Inches(2.7)),
+        (Inches(0.6), Inches(4.3), Inches(5.8), Inches(2.7)),
+        (Inches(6.9), Inches(4.3), Inches(5.8), Inches(2.7)),
+    ]
+
+    for i, (img_path, img) in enumerate(available[:4]):
+        left, top, width, height = positions[i]
+        try:
+            pic = slide.shapes.add_picture(img_path, left, top, width, height)
+        except Exception:
+            continue
+
+        # Add page label
+        _add_text_box(slide, left, top + height + Inches(0.05), width, Inches(0.25),
+                      f"Page {img.get('page', '?')}", Pt(9), GRAY, align=PP_ALIGN.CENTER)

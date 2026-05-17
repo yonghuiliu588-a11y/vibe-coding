@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}设置 — 论文助手{% endblock %}
+{% block content %}
+
+<h2>API 设置</h2>
+<p class="subtitle">配置模型提供商和 API Key，保存后立即生效</p>
+
+<div class="settings-card">
+    <div class="form-group">
+        <label>模型提供商</label>
+        <div class="provider-tabs" id="providerTabs">
+            <button class="provider-tab active" data-provider="deepseek" onclick="switchProvider('deepseek')">
+                <span class="provider-icon">🪨</span>
+                <div>
+                    <strong>DeepSeek</strong>
+                    <small>api.deepseek.com</small>
+                </div>
+            </button>
+            <button class="provider-tab" data-provider="claude" onclick="switchProvider('claude')">
+                <span class="provider-icon">🧠</span>
+                <div>
+                    <strong>Claude</strong>
+                    <small>api.anthropic.com</small>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+        <span class="form-hint">Key 仅保存在本地数据库，不会上传到任何第三方</span>
+    </div>
+
+    <div class="form-group" id="modelGroup">
+        <label for="modelSelect">模型</label>
+        <select id="modelSelect"></select>
+    </div>
+
+    <div class="settings-actions">
+        <button class="btn btn-primary btn-lg" id="saveBtn" onclick="saveSettings()">保存并应用</button>
+        <span id="saveStatus"></span>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MODELS = {
+    deepseek: [
+        { value: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+        { value: 'deepseek-chat', label: 'DeepSeek V3' },
+        { value: 'deepseek-reasoner', label: 'DeepSeek R1（推理增强）' },
+    ],
+    claude: [
+        { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6（推荐）' },
+        { value: 'claude-opus-4-7', label: 'Claude Opus 4.7（最强）' },
+        { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5（极速）' },
+    ],
+};
+
+let currentProvider = 'deepseek';
+
+function switchProvider(provider) {
+    currentProvider = provider;
+    document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`[data-provider="${provider}"]`).classList.add('active');
+    renderModelOptions(provider);
+}
+
+function renderModelOptions(provider) {
+    const sel = document.getElementById('modelSelect');
+    sel.innerHTML = '';
+    MODELS[provider].forEach(m => {
+        const o = document.createElement('option');
+        o.value = m.value;
+        o.textContent = m.label;
+        sel.appendChild(o);
+    });
+}
+
+async function loadSettings() {
+    try {
+        const resp = await fetch('/api/settings');
+        const data = await resp.json();
+
+        if (data.provider) {
+            currentProvider = data.provider;
+            document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'));
+            const tab = document.querySelector(`[data-provider="${data.provider}"]`);
+            if (tab) tab.classList.add('active');
+        }
+
+        renderModelOptions(currentProvider);
+
+        if (data.model) {
+            document.getElementById('modelSelect').value = data.model;
+        }
+
+        if (data.api_key_masked) {
+            document.getElementById('apiKey').value = data.api_key_masked;
+            document.getElementById('apiKey').dataset.hasStored = 'true';
+        }
+    } catch (e) { /* server may not be ready */ }
+}
+
+loadSettings();
+
+document.getElementById('apiKey').addEventListener('focus', function() {
+    if (this.dataset.hasStored === 'true' && this.value) {
+        this.value = '';
+        this.dataset.hasStored = 'false';
+    }
+});
+
+async function saveSettings() {
+    const btn = document.getElementById('saveBtn');
+    const status = document.getElementById('saveStatus');
+    const apiKey = document.getElementById('apiKey').value.trim();
+
+    btn.disabled = true;
+    btn.textContent = '保存中…';
+    status.textContent = '';
+    status.className = 'save-status';
+
+    try {
+        const resp = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider: currentProvider,
+                api_key: apiKey || null,
+                model: document.getElementById('modelSelect').value,
+            }),
+        });
+        const data = await resp.json();
+        if (data.status === 'saved') {
+            status.textContent = '已保存，设置已生效 ✓';
+            status.className = 'save-status success';
+            if (apiKey) {
+                document.getElementById('apiKey').value = data.api_key_masked;
+                document.getElementById('apiKey').dataset.hasStored = 'true';
+            }
+        } else {
+            status.textContent = '保存失败';
+            status.className = 'save-status error';
+        }
+    } catch (e) {
+        status.textContent = '网络错误';
+        status.className = 'save-status error';
+    }
+
+    btn.disabled = false;
+    btn.textContent = '保存并应用';
+}
+</script>
+{% endblock %}

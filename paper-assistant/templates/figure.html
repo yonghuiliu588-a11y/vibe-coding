@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}图表生成 — 论文助手{% endblock %}
+{% block content %}
+
+<div class="tool-page">
+    <h2>图表生成</h2>
+    <p class="tool-subtitle">基于 Nature 期刊标准生成 Python matplotlib 科研图表</p>
+
+    <div class="tool-form">
+        <div class="form-group">
+            <label>实验数据（CSV 或 JSON，可选）</label>
+            <textarea id="dataInput" rows="5" placeholder='例如：
+model,accuracy,f1
+ResNet-50,76.3,74.8
+ViT-B/16,82.1,80.5
+Swin-T,83.7,81.9
+
+或 JSON: [{"model":"ResNet","acc":76.3},{"model":"ViT","acc":82.1}]'></textarea>
+        </div>
+        <div class="form-group">
+            <label>图表描述</label>
+            <textarea id="figureInput" rows="4" placeholder="例如：画一个对比柱状图，X轴是模型名称，Y轴是准确率，不同模型用不同颜色，标注具体数值…"></textarea>
+        </div>
+        <div class="form-group">
+            <label>补充提示词（可选）</label>
+            <input type="text" id="extraPrompt" placeholder="例如：使用 Nature 配色方案，字体用 Arial 7pt，输出 SVG…">
+        </div>
+        <button class="btn btn-primary btn-lg" id="genBtn" onclick="generateFigure()">生成代码</button>
+    </div>
+
+    <div id="genStatus" class="tool-status" style="display:none;"></div>
+
+    <div id="outputArea" class="tool-output" style="display:none;">
+        <div class="output-header">
+            <span>📝 生成的 Python 代码</span>
+            <button class="btn btn-sm btn-outline" onclick="copyCode()">复制</button>
+        </div>
+        <pre><code id="outputCode"></code></pre>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function generateFigure() {
+    const desc = document.getElementById('figureInput').value.trim();
+    const data = document.getElementById('dataInput').value.trim();
+    const extra = document.getElementById('extraPrompt').value.trim();
+    if (!desc) return;
+
+    const btn = document.getElementById('genBtn');
+    const status = document.getElementById('genStatus');
+    const output = document.getElementById('outputArea');
+    const code = document.getElementById('outputCode');
+
+    btn.disabled = true; btn.textContent = '生成中…';
+    status.style.display = 'block';
+    status.innerHTML = '<span class="spinner"></span> AI 正在生成图表代码…';
+    output.style.display = 'none';
+
+    try {
+        const resp = await fetch('/api/figure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description: desc, data: data, extra_prompt: extra }),
+        });
+        const data = await resp.json();
+        status.style.display = 'none';
+        if (data.code) {
+            code.textContent = data.code;
+            output.style.display = 'block';
+        } else {
+            status.innerHTML = '<span style="color:#dc2626;">生成失败：' + (data.error || '未知错误') + '</span>';
+        }
+    } catch (e) {
+        status.innerHTML = '<span style="color:#dc2626;">网络错误</span>';
+    }
+    btn.disabled = false; btn.textContent = '生成代码';
+}
+
+function copyCode() {
+    const code = document.getElementById('outputCode').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        const btn = event.target;
+        const orig = btn.textContent;
+        btn.textContent = '已复制'; setTimeout(() => btn.textContent = orig, 1500);
+    });
+}
+</script>
+{% endblock %}

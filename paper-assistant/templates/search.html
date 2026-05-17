@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}谷歌搜索 — 论文助手{% endblock %}
+{% block content %}
+
+<div class="search-page">
+    <h2>谷歌搜索</h2>
+    <p class="search-subtitle">从 arXiv 搜索学术论文，综合发表时间和引用数排序</p>
+
+    <div class="search-box">
+        <input type="text" id="searchQuery" placeholder="输入关键词、论文标题或作者…" autofocus onkeydown="if(event.key==='Enter')doSearch()">
+        <button class="btn btn-primary btn-lg" id="searchBtn" onclick="doSearch()">搜索</button>
+    </div>
+
+    <div id="searchStatus" class="search-status" style="display:none;"></div>
+
+    <div id="searchControls" class="search-controls" style="display:none;">
+        <div class="rrf-slider">
+            <div class="rrf-labels">
+                <span>⏱️ 越新越好</span>
+                <span class="rrf-balance" id="rrfDesc">时间 50% · 引用 50%</span>
+                <span>📊 引用越高越好</span>
+            </div>
+            <input type="range" id="rrfAlpha" min="0" max="100" value="50" step="5" oninput="rerank()">
+            <div class="rrf-ticks">
+                <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+            </div>
+        </div>
+        <div class="search-results-header">
+            <span id="resultCount"></span>
+            <span class="rrf-mode">排序：倒数排名融合 (RRF)</span>
+        </div>
+    </div>
+
+    <div id="searchResults" class="search-results" style="display:none;">
+        <div id="resultsList"></div>
+    </div>
+
+    <div id="searchEmpty" class="empty-state" style="display:none;">
+        <div class="empty-icon">🔍</div>
+        <h3>输入关键词开始搜索</h3>
+        <p>支持中英文关键词，通过 arXiv + OpenAlex 搜索学术论文</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allPapers = [];
+let importedIds = new Set();
+let isSearching = false;
+
+async function doSearch() {
+    const query = document.getElementById('searchQuery').value.trim();
+    if (!query || isSearching) return;
+
+    isSearching = true;
+    const btn = document.getElementById('searchBtn');
+    const statusEl = document.getElementById('searchStatus');
+    const resultsEl = document.getElementById('searchResults');
+    const controlsEl = document.getElementById('searchControls');
+    const emptyEl = document.getElementById('searchEmpty');
+    const listEl = document.getElementById('resultsList');
+    const countEl = document.getElementById('resultCount');
+
+    btn.disabled = true;
+    btn.textContent = '搜索中…';
+    emptyEl.style.display = 'none';
+    resultsEl.style.display = 'none';
+    controlsEl.style.display = 'none';
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = '<span class="spinner"></span> 正在从 arXiv 搜索 30 篇论文…';
+    listEl.innerHTML = '';
+
+    try {
+        const resp = await fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query }),
+        });
+        const data = await resp.json();
+        allPapers = data.results || [];
+
+        if (allPapers.length === 0) {
+            statusEl.style.display = 'none';
+            emptyEl.style.display = 'block';
+            emptyEl.querySelector('h3').textContent = '未找到相关论文';
+            emptyEl.querySelector('p').textContent = '尝试更换关键词或使用英文搜索';
+        } else {
+            statusEl.style.display = 'none';
+            controlsEl.style.display = 'block';
+            resultsEl.style.display = 'block';
+
+            // Enriching status
+            const withCites = allPapers.filter(p => p.citations > 0).length;
+            countEl.textContent = '获取 ' + allPapers.length + ' 篇候选 (' + withCites + ' 篇有引用数据)';
+
+            document.getElementById('rrfAlpha').value = 50;
+            rerank();
+        }
+    } catch (e) {
+        statusEl.innerHTML = '<span style="color:#dc2626;">搜索失败，请重试</span>';
+    }
+
+    isSearching = false;
+    btn.disabled = false;
+    btn.textContent = '搜索';
+}
+
+function rerank() {
+    const alpha = parseInt(document.getElementById('rrfAlpha').value) / 100;
+    document.getElementById('rrfDesc').textContent =
+        '时间 ' + Math.round(alpha * 100) + '% · 引用 ' + Math.round((1 - alpha) * 100) + '%';
+
+    if (allPapers.length === 0) return;
+
+    // RRF: rank by date (newer first) and citations (higher first)
+    const N = allPapers.length;
+
+    // Sort by date descending
+    const byDate = [...allPapers].sort((a, b) => {
+        const da = a.published || '0000';
+        const db = b.published || '0000';
+        return db.localeCompare(da);
+    });
+    const dateRank = {};
+    byDate.forEach((p, i) => { dateRank[p.title + '|' + p.url] = i + 1; });
+
+    // Sort by citations descending
+    const byCites = [...allPapers].sort((a, b) => (b.citations || 0) - (a.citations || 0));
+    const citeRank = {};
+    byCites.forEach((p, i) => { citeRank[p.title + '|' + p.url] = i + 1; });
+
+    // Compute RRF scores
+    const scored = allPapers.map(p => {
+        const key = p.title + '|' + p.url;
+        const dr = dateRank[key] || N;
+        const cr = citeRank[key] || N;
+        const score = alpha * (1 / dr) + (1 - alpha) * (1 / cr);
+        return { ...p, date_rank: dr, cite_rank: cr, rrf_score: score };
+    });
+
+    // Sort by RRF score descending, take top 10
+    scored.sort((a, b) => b.rrf_score - a.rrf_score);
+    const top10 = scored.slice(0, 10);
+
+    renderResults(top10);
+}
+
+function renderResults(papers) {
+    const listEl = document.getElementById('resultsList');
+    listEl.innerHTML = '';
+
+    papers.forEach((paper, i) => {
+        listEl.appendChild(createResultItem(paper, i));
+    });
+}
+
+function createResultItem(paper, index) {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    div.id = 'result-' + index;
+
+    const abstract = paper.abstract || '';
+    const truncated = abstract.length > 250 ? abstract.substring(0, 250) + '…' : abstract;
+
+    // Format date
+    let dateStr = '';
+    if (paper.published) {
+        const parts = paper.published.split('-');
+        if (parts.length >= 2) {
+            dateStr = parts[0] + '年' + parseInt(parts[1]) + '月';
+        } else {
+            dateStr = paper.published;
+        }
+    } else if (paper.year) {
+        dateStr = paper.year + '年';
+    }
+
+    const citeCount = paper.citations || 0;
+
+    div.innerHTML = `
+        <div class="result-body">
+            <div class="result-title">${escapeHtml(paper.title)}</div>
+            <div class="result-meta">
+                <span>${escapeHtml(paper.authors || '作者未知')}</span>
+            </div>
+            <div class="result-stats">
+                ${dateStr ? '<span class="stat-item">📅 ' + dateStr + '</span>' : ''}
+                <span class="stat-item">📊 引用 ' + citeCount + ' 次</span>
+                <span class="stat-item stat-rank">#日期排名 ' + (paper.date_rank || '?') + '</span>
+                <span class="stat-item stat-rank">#引用排名 ' + (paper.cite_rank || '?') + '</span>
+            </div>
+            ${truncated ? '<div class="result-abstract">' + escapeHtml(truncated) + '</div>' : ''}
+        </div>
+        <div class="result-actions">
+            <button class="btn btn-primary btn-sm" id="importBtn-${index}" onclick="importPaper(${index})">导入</button>
+        </div>`;
+    return div;
+}
+
+async function importPaper(index) {
+    const item = document.getElementById('result-' + index);
+    const btn = document.getElementById('importBtn-' + index);
+    if (!item || !btn || btn.disabled) return;
+
+    btn.disabled = true;
+    btn.textContent = '导入中…';
+
+    const title = item.querySelector('.result-title').textContent;
+    const authorsEl = item.querySelector('.result-meta span');
+    const authors = authorsEl ? authorsEl.textContent : '';
+    const abstract = item.querySelector('.result-abstract') ? item.querySelector('.result-abstract').textContent : '';
+
+    // Extract year from date stat
+    const dateStat = item.querySelector('.stat-item');
+    const year = dateStat ? (dateStat.textContent.match(/(\d{4})/) || ['', ''])[1] : '';
+
+    try {
+        const resp = await fetch('/api/search/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                paper: { title, authors, year, abstract },
+            }),
+        });
+        const data = await resp.json();
+        if (data.paper_id) {
+            btn.textContent = '已导入';
+            btn.className = 'btn btn-sm imported-btn';
+            importedIds.add(index);
+        } else {
+            btn.disabled = false;
+            btn.textContent = '重试';
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '重试';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

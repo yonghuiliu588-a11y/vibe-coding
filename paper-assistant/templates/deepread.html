@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}论文精读 — 论文助手{% endblock %}
+{% block content %}
+
+{% if not paper %}
+<div class="empty-state">
+    <div class="empty-icon">📖</div>
+    <h3>暂无论文</h3>
+    <p>请先在「组会PPT」中上传论文，然后再来精读。</p>
+    <a href="/" class="btn btn-primary" style="margin-top: 16px;">前往上传论文</a>
+</div>
+{% else %}
+
+<div class="deepread-topbar">
+    <h2>论文精读</h2>
+    <div class="paper-selector">
+        <label for="paperSelect">选择论文：</label>
+        <select id="paperSelect" onchange="switchPaper(this.value)">
+            {% for p in all_papers %}
+            <option value="{{ p.id }}" {% if p.id == paper.id %}selected{% endif %}>
+                {{ p.title or p.filename }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="deepread-layout">
+    <!-- Left Panel: Paper Overview -->
+    <div class="deepread-left" id="leftPanel">
+        <div class="paper-overview">
+            <div class="paper-header">
+                <h3>{{ paper.title or paper.filename }}</h3>
+                <p class="paper-meta">
+                    {{ paper.authors or '作者未知' }}
+                    {% if paper.year %}<span class="year-badge">{{ paper.year }}</span>{% endif %}
+                    {% if paper.status == 'done' %}
+                    <span class="status-badge done">已解析</span>
+                    {% elif paper.status == 'uploaded' %}
+                    <span class="status-badge uploaded">已上传</span>
+                    {% elif paper.status == 'processing' %}
+                    <span class="status-badge processing">解析中</span>
+                    {% elif paper.status == 'error' %}
+                    <span class="status-badge error">解析失败</span>
+                    {% endif %}
+                </p>
+            </div>
+
+            {% if paper.status == 'uploaded' %}
+            <div class="info-block analyze-action">
+                <p>这篇论文尚未进行 AI 解析。点击下方按钮，AI 将自动分析论文结构、公式和图表。</p>
+                <button class="btn btn-primary btn-lg" id="analyzeBtn" onclick="triggerAnalysis()">开始解析</button>
+                <div id="analyzeStatus" style="display:none; margin-top: 14px;">
+                    <span class="spinner"></span> <span id="analyzeMsg">AI 正在解析论文，请稍候…</span>
+                </div>
+            </div>
+            <script>
+            async function triggerAnalysis() {
+                const btn = document.getElementById('analyzeBtn');
+                const status = document.getElementById('analyzeStatus');
+                const msg = document.getElementById('analyzeMsg');
+                btn.disabled = true;
+                btn.textContent = '解析中…';
+                status.style.display = 'block';
+                try {
+                    const resp = await fetch('/deepread/analyze/{{ paper.id }}', { method: 'POST' });
+                    const data = await resp.json();
+                    if (data.status === 'done') {
+                        msg.textContent = '解析完成，正在刷新…';
+                        window.location.reload();
+                    } else {
+                        msg.innerHTML = '<span style="color:#dc2626;">解析失败：' + (data.error || '未知错误') + '</span>';
+                        btn.disabled = false;
+                        btn.textContent = '重试';
+                    }
+                } catch (e) {
+                    msg.innerHTML = '<span style="color:#dc2626;">网络错误</span>';
+                    btn.disabled = false;
+                    btn.textContent = '重试';
+                }
+            }
+            </script>
+            {% endif %}
+
+            {% if paper.status == 'processing' %}
+            <div class="info-block analyzing-block">
+                <span class="spinner"></span> AI 正在解析论文，请稍候…<br>
+                <span class="analyzing-sub">页面将在解析完成后自动刷新</span>
+            </div>
+            <script>
+                setTimeout(function() { window.location.reload(); }, 5000);
+            </script>
+            {% endif %}
+
+            {% if paper.status == 'error' %}
+            <div class="alert alert-error">
+                解析失败，请返回「组会PPT」重新上传论文。
+            </div>
+            {% endif %}
+
+            {% if paper.overview %}
+            <div class="info-block overview">
+                <div class="info-label">AI 论文梗概</div>
+                <p>{{ paper.overview }}</p>
+            </div>
+            {% endif %}
+
+            {% if paper.abstract %}
+            <div class="info-block abstract">
+                <div class="info-label">摘要</div>
+                <p>{{ paper.abstract }}</p>
+            </div>
+            {% endif %}
+
+            {% if formulas %}
+            <div class="info-block formulas">
+                <div class="info-label">核心公式</div>
+                {% for f in formulas %}
+                <div class="formula-line">$${{ f }}$$</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if images or figures %}
+            <div class="info-block figures-block">
+                <div class="info-label">论文图表</div>
+                {% if images %}
+                <div class="image-gallery">
+                    {% for img in images %}
+                    <figure class="image-figure">
+                        <img src="/images/{{ paper.id }}/{{ img.filename }}" alt="Figure from page {{ img.page }}" loading="lazy" onclick="openLightbox(this.src)">
+                        <figcaption>第 {{ img.page }} 页 · {{ img.width }}×{{ img.height }}</figcaption>
+                    </figure>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if figures %}
+                <div class="figure-descriptions">
+                    {% for fig in figures %}
+                    <div class="figure-desc-item">{{ fig }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if sections_data %}
+            <div class="info-block sections">
+                <div class="info-label">论文结构</div>
+                {% for sec in sections_data %}
+                <div class="section-block">
+                    <div class="section-head">{{ sec.heading }}</div>
+                    <div class="section-desc">{{ sec.summary }}</div>
+                    {% if sec.key_points %}
+                    <ul class="section-pts">
+                        {% for pt in sec.key_points %}
+                        <li>{{ pt }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right Panel: Chat -->
+    <div class="deepread-right" id="rightPanel">
+        <div class="chat-container">
+            <div class="chat-header">
+                <span>💬 与 AI 讨论这篇论文</span>
+                <button class="btn btn-sm btn-outline" onclick="clearChat()" title="清空对话">清空</button>
+            </div>
+            <div class="system-prompt-editor" id="promptEditor">
+                <div class="sp-header" onclick="togglePrompt()">
+                    <span>⚙️ System Prompt</span>
+                    <span id="spToggle">▾</span>
+                </div>
+                <div class="sp-body" id="spBody" style="display:none;">
+                    <textarea id="systemPrompt" rows="12" onchange="onPromptChange()">{{ default_system_prompt }}</textarea>
+                    <div class="sp-actions">
+                        <button class="btn btn-sm btn-outline" onclick="resetPrompt()">恢复默认</button>
+                        <span class="sp-hint" id="spStatus">已加载默认提示词</span>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-msg assistant">
+                    <div class="msg-avatar">🤖</div>
+                    <div class="msg-bubble">
+                        我已经仔细阅读了这篇论文，有任何问题都可以问我。比如：
+                        <br><br>• 这篇论文的核心创新点是什么？
+                        <br>• 作者用了什么方法/算法？
+                        <br>• 实验部分用了哪些数据集？结果如何？
+                        <br>• 某个公式的含义是什么？
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <textarea id="chatInput" placeholder="输入你的问题…" rows="2" onkeydown="handleKeyDown(event)"></textarea>
+                <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">发送</button>
+            </div>
+            {% if not api_key_set %}
+            <div class="alert alert-warning" style="margin: 8px 16px; font-size: 12px;">
+                API Key 未配置，对话功能不可用。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if paper %}
+<script>
+function openLightbox(src) {
+    const overlay = document.createElement('div');
+    overlay.className = 'lightbox-overlay';
+    overlay.innerHTML = '<div class="lightbox-close" onclick="this.parentElement.remove()">✕</div><img src="' + src + '" class="lightbox-img">';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
+}
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        var lb = document.querySelector('.lightbox-overlay');
+        if (lb) lb.remove();
+    }
+});
+
+const DEFAULT_PROMPT = {{ default_system_prompt|tojson }};
+const PAPER_ID = {{ paper.id }};
+let chatMessages = [];
+let isWaiting = false;
+let promptModified = false;
+
+function togglePrompt() {
+    const body = document.getElementById('spBody');
+    const toggle = document.getElementById('spToggle');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        toggle.textContent = '▴';
+    } else {
+        body.style.display = 'none';
+        toggle.textContent = '▾';
+    }
+}
+
+function onPromptChange() {
+    promptModified = true;
+    document.getElementById('spStatus').textContent = '提示词已修改 ✓';
+}
+
+function resetPrompt() {
+    document.getElementById('systemPrompt').value = DEFAULT_PROMPT;
+    promptModified = false;
+    document.getElementById('spStatus').textContent = '已恢复默认提示词';
+}
+
+function getSystemPrompt() {
+    const val = document.getElementById('systemPrompt').value.trim();
+    return val || DEFAULT_PROMPT;
+}
+
+function switchPaper(paperId) {
+    if (paperId) {
+        window.location.href = '/deepread/' + paperId;
+    }
+}
+
+function clearChat() {
+    chatMessages = [];
+    const container = document.getElementById('chatMessages');
+    container.innerHTML = `
+        <div class="chat-msg assistant">
+            <div class="msg-avatar">🤖</div>
+            <div class="msg-bubble">对话已清空。有什么想了解的？</div>
+        </div>`;
+}
+
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+}
+
+function addMessage(role, text) {
+    const container = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + role;
+    const avatar = role === 'user' ? '👤' : '🤖';
+    div.innerHTML = `<div class="msg-avatar">${avatar}</div><div class="msg-bubble">${escapeHtml(text)}</div>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    // Re-render MathJax for new content
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([div]);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML.replace(/\n/g, '<br>');
+}
+
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const btn = document.getElementById('sendBtn');
+    const question = input.value.trim();
+
+    if (!question || isWaiting) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    isWaiting = true;
+    btn.disabled = true;
+    btn.textContent = '思考中…';
+
+    addMessage('user', question);
+    chatMessages.push({ role: 'user', content: question });
+
+    // Show typing indicator
+    const container = document.getElementById('chatMessages');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-msg assistant typing';
+    typingDiv.innerHTML = '<div class="msg-avatar">🤖</div><div class="msg-bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div>';
+    container.appendChild(typingDiv);
+    container.scrollTop = container.scrollHeight;
+
+    try {
+        const resp = await fetch('/deepread/chat/' + PAPER_ID, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: chatMessages.slice(0, -1),
+                question: question,
+                system_prompt: promptModified ? getSystemPrompt() : '',
+            }),
+        });
+        const data = await resp.json();
+
+        // Remove typing indicator
+        typingDiv.remove();
+
+        if (data.error) {
+            addMessage('assistant', '抱歉，出错了：' + data.error);
+        } else {
+            addMessage('assistant', data.response);
+            chatMessages.push({ role: 'assistant', content: data.response });
+        }
+    } catch (err) {
+        typingDiv.remove();
+        addMessage('assistant', '网络错误，请重试。');
+    }
+
+    isWaiting = false;
+    btn.disabled = false;
+    btn.textContent = '发送';
+    input.focus();
+}
+</script>
+{% endif %}
+{% endblock %}
