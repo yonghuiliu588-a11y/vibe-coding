@@ -8,5 +8,5 @@ CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "sk-4dd15e3cd49d4b648861276b5e
 
 # Dify workflow configuration (takes precedence over direct Claude API)
 DIFY_BASE_URL = os.environ.get("DIFY_BASE_URL", "http://localhost/v1")
-DIFY_PAPER_ANALYSIS_KEY = os.environ.get("DIFY_PAPER_ANALYSIS_KEY", "app-G6ABfXIVtGMbGm232SA7u0Ay")
-DIFY_SLIDE_GEN_KEY = os.environ.get("DIFY_SLIDE_GEN_KEY", "app-mihaQrlDQFFzMSfmIlOL7IXd")
+DIFY_PAPER_ANALYSIS_KEY = os.environ.get("DIFY_PAPER_ANALYSIS_KEY", "app-MAjYTM2jjk9Ow7SC8FvwY3X3")
+DIFY_SLIDE_GEN_KEY = os.environ.get("DIFY_SLIDE_GEN_KEY", "app-R2DBbvLlTKFf8bSW1204pJYr")
